@@ -203,63 +203,90 @@ class SBatchClient:
     # -----------------------------
     # Cancellation
     # -----------------------------
+    def _confirm_action(self, message: str, confirm: bool, interactive: bool) -> None:
+        """
+        Internal confirmation helper.
+
+        Args:
+            message: Message shown to user.
+            confirm: Must be True to proceed.
+            interactive: If True, ask user for confirmation.
+        """
+        if not confirm:
+            raise ValueError(f"{message} Set confirm=True to proceed.")
+
+        if interactive:
+            response = input(f"{message} Type 'yes' to confirm: ")
+            if response.lower() != "yes":
+                raise RuntimeError("Operation cancelled by user.")
+
     def cancel(self, job_id: str) -> None:
-        """
-        Cancel a single job.
+        """Cancel a single job (no confirmation needed)."""
+        subprocess.run(["scancel", job_id], check=True)
 
-        Args:
-            job_id: SLURM job ID.
-        """
-        subprocess.run(
-            ["scancel", job_id],
-            check=True,
-        )
 
-    def cancel_many(self, job_ids: List[str]) -> None:
+    def cancel_many(
+        self,
+        job_ids: List[str],
+        confirm: bool = False,
+        interactive: bool = False,
+    ) -> None:
         """
-        Cancel multiple jobs.
-
-        Args:
-            job_ids: List of SLURM job IDs.
+        Cancel multiple jobs safely.
         """
         if not job_ids:
             return
 
-        subprocess.run(
-            ["scancel", *job_ids],
-            check=True,
+        self._confirm_action(
+            f"Cancelling {len(job_ids)} jobs.",
+            confirm,
+            interactive,
         )
 
-    def cancel_by_name(self, job_name: str) -> List[str]:
+        subprocess.run(["scancel", *job_ids], check=True)
+
+
+    def cancel_by_name(
+        self,
+        job_name: str,
+        confirm: bool = False,
+        interactive: bool = False,
+    ) -> List[str]:
         """
-        Cancel all jobs matching a given job name.
-
-        Args:
-            job_name: Name of the job.
-
-        Returns:
-            List of cancelled job IDs.
+        Cancel all jobs with a given name.
         """
         jobs = self.list_jobs()
         matched_ids = [job["id"] for job in jobs if job["name"] == job_name]
 
         if matched_ids:
-            self.cancel_many(matched_ids)
+            self._confirm_action(
+                f"Cancelling {len(matched_ids)} jobs named '{job_name}'.",
+                confirm,
+                interactive,
+            )
+            self.cancel_many(matched_ids, confirm=True, interactive=False)
 
         return matched_ids
 
-    def cancel_all(self) -> List[str]:
-        """
-        Cancel ALL running/pending jobs for the current user.
 
-        Returns:
-            List of cancelled job IDs.
+    def cancel_all(
+        self,
+        confirm: bool = False,
+        interactive: bool = False,
+    ) -> List[str]:
+        """
+        Cancel all running/pending jobs for the user.
         """
         jobs = self.list_jobs()
         job_ids = [job["id"] for job in jobs]
 
         if job_ids:
-            self.cancel_many(job_ids)
+            self._confirm_action(
+                f"Cancelling ALL jobs ({len(job_ids)} total).",
+                confirm,
+                interactive,
+            )
+            self.cancel_many(job_ids, confirm=True, interactive=False)
 
         return job_ids
-        
+
