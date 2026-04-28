@@ -17,13 +17,14 @@ class JobConfig:
     """
 
     job_name: str
-    time: str = "01:00:00"
+    time: Optional[str] = None
     partition: Optional[str] = None
     nodes: int = 1
     cpus_per_task: int = 1
     ntasks: Optional[int] = None  
     ntasks_per_node: Optional[int] = None
     gpus: Optional[int] = None
+    error: Optional[str] = None
     output: Optional[str] = None
 
     # allow extra sbatch args if needed
