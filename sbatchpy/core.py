@@ -21,6 +21,7 @@ class JobConfig:
     partition: Optional[str] = None
     nodes: int = 1
     cpus_per_task: int = 1
+    ntasks: Optional[int] = None  
     ntasks_per_node: Optional[int] = None
     gpus: Optional[int] = None
     output: Optional[str] = None
