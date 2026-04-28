@@ -2,13 +2,63 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Dict, List, Optional
 
 
+# -----------------------------
+# Job configuration (typed)
+# -----------------------------
+@dataclass
+class JobConfig:
+    """
+    Strongly-typed SLURM job configuration.
+    """
+
+    job_name: str
+    time: str = "01:00:00"
+    partition: Optional[str] = None
+    nodes: int = 1
+    cpus_per_task: int = 1
+    ntasks_per_node: Optional[int] = None
+    gpus: Optional[int] = None
+    output: Optional[str] = None
+
+    # allow extra sbatch args if needed
+    extra: Dict[str, str] = field(default_factory=dict)
+
+    def to_sbatch_dict(self) -> Dict[str, str]:
+        """
+        Convert dataclass fields into SBATCH-compatible dict.
+        """
+        mapping = {
+            "job_name": "job-name",
+            "cpus_per_task": "cpus-per-task",
+            "ntasks_per_node": "ntasks-per-node",
+        }
+
+        result: Dict[str, str] = {}
+
+        for key, value in asdict(self).items():
+            if value is None or key == "extra":
+                continue
+
+            sbatch_key = mapping.get(key, key.replace("_", "-"))
+            result[sbatch_key] = str(value)
+
+        # merge extra args (highest priority)
+        result.update(self.extra)
+
+        return result
+
+
+# -----------------------------
+# Client
+# -----------------------------
 class SBatchClient:
     """
-    High-level interface for creating and submitting SLURM sbatch jobs.
+    SLURM sbatch client with typed configuration.
     """
 
     DEFAULT_PRESETS: Dict[str, Dict[str, str]] = {
@@ -33,11 +83,6 @@ class SBatchClient:
         job_directory: Optional[str | Path] = None,
         presets: Optional[Dict[str, Dict[str, str]]] = None,
     ):
-        """
-        Args:
-            job_directory: Directory where sbatch scripts are stored.
-            presets: Optional custom presets overriding defaults.
-        """
         self.job_dir = Path(job_directory or Path.cwd() / ".job")
         self.job_dir.mkdir(parents=True, exist_ok=True)
 
@@ -47,7 +92,6 @@ class SBatchClient:
     # Presets
     # -----------------------------
     def get_preset(self, name: str) -> Dict[str, str]:
-        """Return a preset configuration."""
         if name not in self.presets:
             raise KeyError(f"Preset '{name}' not found.")
         return self.presets[name].copy()
@@ -60,33 +104,27 @@ class SBatchClient:
 
     def _create_script(
         self,
-        options: Dict[str, str],
+        config: JobConfig,
         code: str,
         preset: Optional[str] = None,
     ) -> Path:
         """
-        Generate an sbatch script file.
-
-        Returns:
-            Path to script.
+        Create sbatch script file.
         """
-        merged = {}
+        options = {}
 
         if preset:
-            merged.update(self.get_preset(preset))
+            options.update(self.get_preset(preset))
 
-        merged.update(options)
+        options.update(config.to_sbatch_dict())
 
-        if "job-name" not in merged:
-            raise ValueError("Missing required option: 'job-name'")
-
-        job_file = self.job_dir / merged["job-name"]
+        job_file = self.job_dir / config.job_name
 
         with job_file.open("w") as fh:
             fh.write("#!/bin/bash\n")
             fh.write("#SBATCH --no-requeue\n")
 
-            for key, value in merged.items():
+            for key, value in options.items():
                 self._write_directive(fh, key, value)
 
             fh.write("\n")
@@ -98,12 +136,6 @@ class SBatchClient:
     # Submission
     # -----------------------------
     def _submit(self, job_file: Path) -> str:
-        """
-        Submit job via sbatch.
-
-        Returns:
-            Job ID string.
-        """
         result = subprocess.run(
             ["sbatch", str(job_file)],
             capture_output=True,
@@ -114,24 +146,21 @@ class SBatchClient:
 
     def submit(
         self,
-        options: Dict[str, str],
+        config: JobConfig,
         code: str,
         preset: Optional[str] = None,
         check_output_dir: bool = True,
         cleanup: bool = False,
     ) -> str:
         """
-        Create and submit a job.
-
-        Returns:
-            Job ID.
+        Submit a job using typed configuration.
         """
-        if "output" in options and check_output_dir:
-            out_dir = Path(options["output"]).parent
+        if config.output and check_output_dir:
+            out_dir = Path(config.output).parent
             if out_dir and not out_dir.exists():
                 raise FileNotFoundError(f"Output directory does not exist: {out_dir}")
 
-        job_file = self._create_script(options, code, preset)
+        job_file = self._create_script(config, code, preset)
         job_id = self._submit(job_file)
 
         if cleanup:
@@ -143,9 +172,6 @@ class SBatchClient:
     # Monitoring
     # -----------------------------
     def list_jobs(self) -> List[Dict[str, str]]:
-        """
-        List current user's running/pending jobs.
-        """
         cmd = [
             "squeue",
             "--me",
@@ -173,4 +199,3 @@ class SBatchClient:
             )
 
         return jobs
-        
