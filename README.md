@@ -43,9 +43,11 @@ client = SBatchClient()
 config = JobConfig(
     job_name="test_job",
     partition="cpu",
-    cpus_per_task=4,
+    ntasks=4,
+    ntasks_per_node=4,
     time="00:30:00",
-    output="logs/test.out",
+    output = f"{log_dir}/myjob.out",
+    error = f"{log_dir}/myjob.err"
 )
 
 job_id = client.submit(
