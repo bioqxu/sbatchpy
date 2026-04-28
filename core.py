@@ -224,7 +224,6 @@ class SBatchClient:
         """Cancel a single job (no confirmation needed)."""
         subprocess.run(["scancel", job_id], check=True)
 
-
     def cancel_many(
         self,
         job_ids: List[str],
@@ -244,7 +243,6 @@ class SBatchClient:
         )
 
         subprocess.run(["scancel", *job_ids], check=True)
-
 
     def cancel_by_name(
         self,
@@ -267,7 +265,6 @@ class SBatchClient:
             self.cancel_many(matched_ids, confirm=True, interactive=False)
 
         return matched_ids
-
 
     def cancel_all(
         self,
