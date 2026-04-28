@@ -199,3 +199,67 @@ class SBatchClient:
             )
 
         return jobs
+
+    # -----------------------------
+    # Cancellation
+    # -----------------------------
+    def cancel(self, job_id: str) -> None:
+        """
+        Cancel a single job.
+
+        Args:
+            job_id: SLURM job ID.
+        """
+        subprocess.run(
+            ["scancel", job_id],
+            check=True,
+        )
+
+    def cancel_many(self, job_ids: List[str]) -> None:
+        """
+        Cancel multiple jobs.
+
+        Args:
+            job_ids: List of SLURM job IDs.
+        """
+        if not job_ids:
+            return
+
+        subprocess.run(
+            ["scancel", *job_ids],
+            check=True,
+        )
+
+    def cancel_by_name(self, job_name: str) -> List[str]:
+        """
+        Cancel all jobs matching a given job name.
+
+        Args:
+            job_name: Name of the job.
+
+        Returns:
+            List of cancelled job IDs.
+        """
+        jobs = self.list_jobs()
+        matched_ids = [job["id"] for job in jobs if job["name"] == job_name]
+
+        if matched_ids:
+            self.cancel_many(matched_ids)
+
+        return matched_ids
+
+    def cancel_all(self) -> List[str]:
+        """
+        Cancel ALL running/pending jobs for the current user.
+
+        Returns:
+            List of cancelled job IDs.
+        """
+        jobs = self.list_jobs()
+        job_ids = [job["id"] for job in jobs]
+
+        if job_ids:
+            self.cancel_many(job_ids)
+
+        return job_ids
+        
