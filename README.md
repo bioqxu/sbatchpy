@@ -59,24 +59,6 @@ job_id = client.submit(
 print(job_id)
 ```
 
----
-
-## 🧠 Why sbatchpy?
-
-Traditional SLURM scripting relies on string-based options:
-
-```python
-{"cpus-per-task": "4"}  # error-prone
-```
-
-With `sbatchpy`, you get:
-
-```python
-JobConfig(cpus_per_task=4)  # typed, safe, autocompleted
-```
-
----
-
 ## ⚙️ Job Configuration
 
 ### Basic fields
@@ -109,43 +91,6 @@ JobConfig(
 
 ---
 
-## 🧩 Presets
-
-Use predefined resource configurations:
-
-```python
-job_id = client.submit(
-    config=config,
-    code="python script.py",
-    preset="gpu_debug",
-)
-```
-
-### Built-in presets
-
-| Name         | Description      |
-| ------------ | ---------------- |
-| `cpu_shared` | Shared CPU queue |
-| `gpu_debug`  | Short GPU jobs   |
-
----
-
-## 📂 Job Scripts
-
-By default, scripts are written to:
-
-```bash
-./.job/
-```
-
-You can customize:
-
-```python
-client = SBatchClient(job_directory="jobs/")
-```
-
----
-
 ## 📊 Monitor Jobs
 
 ```python
@@ -154,50 +99,54 @@ jobs = client.list_jobs()
 for job in jobs:
     print(job["id"], job["status"], job["name"])
 ```
-
 ---
 
-## 🧱 Project Structure
+## 🛑 Cancel Jobs
 
-```bash
-sbatchpy/
-├── core.py
-├── __init__.py
-├── pyproject.toml
-└── README.md
+Safely cancel SLURM jobs. Bulk actions require confirmation.
+
+### Single job
+
+```python
+client.cancel("123456")
+```
+
+### Multiple jobs
+
+```python
+client.cancel_many(["123", "124"], confirm=True)
+```
+
+### By name
+
+```python
+client.cancel_by_name("rna_seq_job", confirm=True, interactive=True)
+```
+
+### All jobs ⚠️
+
+```python
+client.cancel_all(confirm=True, interactive=True)
 ```
 
 ---
 
-## 🔧 Design Principles
+### 🔒 Safety
 
-* **Typed over dynamic** → fewer runtime errors
-* **Minimal abstraction** → stay close to SLURM
-* **Composable** → easy to extend for workflows
+* `confirm=True` → required for bulk cancel
+* `interactive=True` → optional prompt
 
----
+Without confirmation:
 
-## ⚠️ Limitations
+```python
+client.cancel_all()
+```
 
-* Not a workflow manager (see Snakemake / Nextflow)
-* No built-in dependency graph
-* No job retry or scheduling logic (yet)
-
----
-
-## 🚧 Roadmap
-
-* [ ] YAML/JSON job configs
-* [ ] Parameter sweeps (`map`)
-* [ ] Job dependency support
-* [ ] CLI (`sbatchpy submit config.yaml`)
-* [ ] Logging and experiment tracking
+→ raises an error
 
 ---
 
-## 🤝 Contributing
-
-PRs and issues are welcome!
+Only running (`R`) and pending (`PD`) jobs are affected.
 
 ---
 
@@ -205,10 +154,3 @@ PRs and issues are welcome!
 
 MIT License
 
----
-
-If you want, I can next:
-
-* generate a **`pyproject.toml`** (ready for PyPI)
-* add a **CLI interface**
-* or write a **`map()` API for parameter sweeps** (very useful for your HPC workflows)
